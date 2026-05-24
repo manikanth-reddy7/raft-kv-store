@@ -1,0 +1,67 @@
+syntax = "proto3";
+
+package raftpb;
+option go_package = "raftpb";
+
+message Command {
+    string method           = 1;
+    string key              = 2;
+    int64 value             = 3;
+    GlobalTransaction gt    = 4;
+    Cond cond               = 5;
+    ShardOps so             = 6;
+}
+
+message Cond {
+    string key  = 1;
+    int64 value = 2;
+}
+
+// GlobalTransaction captures the info of entire transaction
+message GlobalTransaction {
+    string txid                             = 1;
+    RaftCommand cmds                        = 2;
+    // Cohorts consists of leader's of all the shards.
+    // TODO: It can be used for transaction stats etc in the future.
+    repeated string cohorts                 = 3;
+    map<int64, ShardOps> shard_to_commands  = 4;
+    string phase                            = 5;
+    int64 start_time                        = 6;
+}
+
+message TxidMap {
+    map<string, GlobalTransaction> map = 1;
+}
+
+message OpsMap {
+    map<string, ShardOps> map = 1;
+}
+
+message ShardOps {
+    string txid         = 1;
+    string master_key   = 2;
+    RaftCommand cmds    = 3;
+    string phase        = 4;
+    bool readOnly       = 5;
+}
+
+message RPCResponse {
+    int32 status                = 1;
+    int64 value                 = 2;
+    string addr                 = 3;
+    string phase                = 4;
+    repeated Command commands   = 5;
+    
+}
+
+message RaftCommand {
+    repeated Command commands   = 1;
+    // To ensure handled by ApplyTransaction
+    bool is_txn                 = 2;
+}
+
+message JoinMsg {
+    string RaftAddress = 1;
+    string ID = 2;
+    string TYPE = 3;
+}

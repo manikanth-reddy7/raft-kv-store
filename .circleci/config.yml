@@ -1,0 +1,79 @@
+version: 2
+jobs:
+  build:
+    docker:
+      # specify the version
+      - image: circleci/golang:1.14
+    environment:
+      PROTOC_VERSION: "3.11.4"
+
+    working_directory: /go/src/github.com/SCPD-Project/raft-kv-store
+    steps:
+      - checkout
+      - setup_remote_docker
+      - restore_cache: # restores saved cache if no changes are detected since last run
+          keys:
+            - go-mod-v1-{{.Branch }}
+      - run:
+          name: Download protoc
+          # Define variables that need interpolation
+          # As CircleCI's each `run` declaration starts a new shell, we need to persist them to $BASH_ENV
+          command: |
+            echo 'export PATH=$HOME/.local/bin:$PATH' >> $BASH_ENV
+            curl -OL https://github.com/google/protobuf/releases/download/v$PROTOC_VERSION/protoc-$PROTOC_VERSION-linux-x86_64.zip
+            unzip protoc-$PROTOC_VERSION-linux-x86_64.zip -d $HOME/.local
+      - run:
+          command: |
+            go get github.com/golang/protobuf/protoc-gen-go@v1.3.3
+            go get -v -t -d ./...
+            export PATH="$PATH:$(go env GOPATH)/bin" >> $BASH_ENV
+            source $BASH_ENV
+            make proto
+            make build
+            mkdir artifacts
+            docker save -o artifacts/image-tar supriyapremkumar/kv:v0.1
+      - run:
+          name: Client tests
+          command: |
+            cd client
+            go test
+      - save_cache: # Store cache in the /go/pkg directory
+          key: go-mod-v1-{{ .Branch }}
+          paths:
+            - "/go/pkg"
+            - "$HOME/.local"
+            - "$HOME/tars"
+      - persist_to_workspace:
+          root: artifacts
+          paths:
+            - image-tar
+  deploy:
+    docker:
+      - image: circleci/golang:1.14
+    steps:
+      - checkout
+      - attach_workspace:
+          at: /tmp/artifacts
+      - setup_remote_docker
+      - run:
+          name: Prod Image Push
+          command: |
+            echo "Pushing built images..."
+            docker load -i /tmp/artifacts/image-tar
+            docker login -u $DOCKER_USER -p $DOCKER_PASS
+            docker push supriyapremkumar/kv:v0.1
+            docker tag supriyapremkumar/kv:v0.1 supriyapremkumar/kv:"$(git rev-parse --short HEAD)"
+            docker push supriyapremkumar/kv:"$(git rev-parse --short HEAD)"
+
+workflows:
+  version: 2
+  cicd:
+    jobs:
+      - build
+      - deploy:
+          context: deploy
+          requires:
+            - build
+          filters:
+            branches:
+              only: master

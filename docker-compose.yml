@@ -1,0 +1,106 @@
+version: "3.8"
+
+# ─────────────────────────────────────────────────────────────
+#  Raft KV Store – Docker Compose cluster
+#
+#  Topology:
+#    node0  →  Leader    (boots first, no --join)
+#    node1  →  Follower  (joins node0)
+#    node2  →  Follower  (joins node0)
+#    client →  Interactive shell (connects to node0:17000)
+#
+#  Each node runs 3 processes inside one container (via bootstrap.sh):
+#    - kv shard-0   on :17001 / raft :18001
+#    - kv shard-1   on :17002 / raft :18002
+#    - kv coordinator on :17000 / raft :18000
+# ─────────────────────────────────────────────────────────────
+
+networks:
+  raft-net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 10.10.10.0/24
+
+volumes:
+  node0-data:
+  node1-data:
+  node2-data:
+
+services:
+
+  # ── Leader node ──────────────────────────────────────────
+  node0:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: raft-kv-store:latest
+    container_name: node0
+    hostname: node0
+    environment:
+      - BOOTSTRAP_LEADER=yes
+    volumes:
+      - node0-data:/pv
+    ports:
+      - "17000:17000"   # coordinator HTTP / RPC
+      - "17001:17001"   # shard-0 RPC
+      - "17002:17002"   # shard-1 RPC
+    networks:
+      - raft-net
+    restart: unless-stopped
+
+  # ── Follower node 1 ──────────────────────────────────────
+  node1:
+    image: raft-kv-store:latest
+    container_name: node1
+    hostname: node1
+    environment:
+      - BOOTSTRAP_FOLLOWER=yes
+    volumes:
+      - node1-data:/pv
+    ports:
+      - "27000:17000"
+      - "27001:17001"
+      - "27002:17002"
+    networks:
+      - raft-net
+    depends_on:
+      - node0
+    restart: unless-stopped
+
+  # ── Follower node 2 ──────────────────────────────────────
+  node2:
+    image: raft-kv-store:latest
+    container_name: node2
+    hostname: node2
+    environment:
+      - BOOTSTRAP_FOLLOWER=yes
+    volumes:
+      - node2-data:/pv
+    ports:
+      - "37000:17000"
+      - "37001:17001"
+      - "37002:17002"
+    networks:
+      - raft-net
+    depends_on:
+      - node0
+    restart: unless-stopped
+
+  # ── Interactive client ────────────────────────────────────
+  # Run separately with: docker-compose run --rm client
+  client:
+    image: raft-kv-store:latest
+    container_name: client
+    hostname: client
+    networks:
+      - raft-net
+    depends_on:
+      - node0
+      - node1
+      - node2
+    entrypoint: ["client", "-e", "node0:17000"]
+    stdin_open: true
+    tty: true
+    profiles:
+      - client   # only starts when explicitly requested
