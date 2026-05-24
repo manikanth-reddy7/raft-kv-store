@@ -113,11 +113,11 @@ This is the same family of technology used inside **Google Spanner**, **Cockroac
 ┌──────────────────────────────────────────────────────────────────┐
 │                   COORDINATOR RAFT GROUP                         │
 │                                                                  │
-│   ┌─────────────────┐   ┌──────────────────┐   ┌─────────────┐  │
-│   │  Coord Leader   │◄──│  Coord Follower  │   │Coord Follow │  │
-│   │   node0:17000   │   │   node1:17000    │   │ node2:17000 │  │
-│   │  Raft: 18000    │   │   Raft: 18000    │   │ Raft: 18000 │  │
-│   └────────┬────────┘   └──────────────────┘   └─────────────┘  │
+│   ┌─────────────────┐   ┌──────────────────┐   ┌─────────────┐   │
+│   │  Coord Leader   │◄──│  Coord Follower  │   │Coord Follow │   │
+│   │   node0:17000   │   │   node1:17000    │   │ node2:17000 │   │
+│   │  Raft: 18000    │   │   Raft: 18000    │   │ Raft: 18000 │   │
+│   └────────┬────────┘   └──────────────────┘   └─────────────┘   │
 │            │                                                     │
 │    Routes requests · Orchestrates 2PC · Recovers stuck txns      │
 └────────────┬────────────────────────────────────────────────────┘
